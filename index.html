@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WIRE — Equal Signal</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;1,9..144,400&display=swap');
+
+  :root{
+    --bg:#15171b;
+    --bg2:#1b1e23;
+    --line:#2a2e35;
+    --ink:#e9e7e1;
+    --ink-dim:#8c9099;
+    --ink-faint:#5b5f68;
+    --amber:#e8a33d;
+    --amber-dim:#9c7335;
+    --red:#c1473f;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'IBM Plex Mono', monospace;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--amber);color:#15171b;}
+
+  /* ---------- top bar ---------- */
+  header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:18px 28px;
+    border-bottom:1px solid var(--line);
+    position:sticky;
+    top:0;
+    background:rgba(21,23,27,0.92);
+    backdrop-filter:blur(6px);
+    z-index:50;
+  }
+  .brand{
+    display:flex;
+    align-items:baseline;
+    gap:12px;
+  }
+  .brand .mark{
+    font-family:'Fraunces', serif;
+    font-style:italic;
+    font-weight:500;
+    font-size:22px;
+    letter-spacing:0.5px;
+    color:var(--ink);
+  }
+  .brand .mark span{color:var(--amber);}
+  .brand .tagline{
+    font-size:10px;
+    letter-spacing:2.5px;
+    text-transform:uppercase;
+    color:var(--ink-faint);
+  }
+  .top-right{
+    display:flex;
+    align-items:center;
+    gap:22px;
+  }
+  .datebox{
+    text-align:right;
+    line-height:1.3;
+  }
+  .datebox .day{
+    font-size:12px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    color:var(--ink-dim);
+  }
+  .datebox .full{
+    font-size:11px;
+    color:var(--ink-faint);
+  }
+  .flagbtn{
+    width:34px;
+    height:34px;
+    border-radius:50%;
+    border:1px solid var(--line);
+    background:var(--bg2);
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:17px;
+    transition:border-color .15s ease, transform .15s ease;
+    padding:0;
+  }
+  .flagbtn:hover{border-color:var(--amber-dim); transform:translateY(-1px);}
+  .flagbtn:focus-visible{outline:2px solid var(--amber); outline-offset:2px;}
+
+  /* ---------- control strip ---------- */
+  .controls{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+    padding:14px 28px;
+    border-bottom:1px solid var(--line);
+    background:var(--bg2);
+  }
+  .controls .spacer{flex:1;}
+  button.ctl{
+    font-family:inherit;
+    font-size:11px;
+    letter-spacing:1.2px;
+    text-transform:uppercase;
+    color:var(--ink-dim);
+    background:transparent;
+    border:1px solid var(--line);
+    padding:9px 16px;
+    border-radius:3px;
+    cursor:pointer;
+    transition:all .15s ease;
+  }
+  button.ctl:hover{color:var(--ink); border-color:var(--ink-faint);}
+  button.ctl:focus-visible{outline:2px solid var(--amber); outline-offset:2px;}
+  button.ctl.primary{
+    color:var(--bg);
+    background:var(--amber);
+    border-color:var(--amber);
+    font-weight:600;
+  }
+  button.ctl.primary:hover{background:#f0b357;}
+  button.ctl.danger:hover{color:var(--red); border-color:var(--red);}
+  .status{
+    font-size:10.5px;
+    color:var(--ink-faint);
+    letter-spacing:0.5px;
+    min-width:120px;
+  }
+
+  /* ---------- manage sources panel ---------- */
+  .panel{
+    max-height:0;
+    overflow:hidden;
+    transition:max-height .25s ease;
+    background:var(--bg2);
+    border-bottom:1px solid var(--line);
+  }
+  .panel.open{max-height:420px; overflow-y:auto;}
+  .panel-inner{padding:20px 28px 26px;}
+  .panel h2{
+    font-family:'Fraunces', serif;
+    font-style:italic;
+    font-weight:500;
+    font-size:17px;
+    margin:0 0 4px;
+    color:var(--ink);
+  }
+  .panel p.hint{
+    font-size:11.5px;
+    color:var(--ink-faint);
+    margin:0 0 16px;
+    line-height:1.6;
+    max-width:640px;
+  }
+  .source-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:9px 0;
+    border-bottom:1px dashed var(--line);
+    font-size:12.5px;
+  }
+  .source-row .name{color:var(--ink); min-width:140px;}
+  .source-row .url{color:var(--ink-faint); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .source-row button.rm{
+    background:none;border:none;color:var(--ink-faint);cursor:pointer;font-size:14px;padding:2px 6px;
+  }
+  .source-row button.rm:hover{color:var(--red);}
+  .add-row{
+    display:flex;
+    gap:10px;
+    margin-top:16px;
+    flex-wrap:wrap;
+  }
+  .add-row input{
+    font-family:inherit;
+    font-size:12.5px;
+    background:var(--bg);
+    border:1px solid var(--line);
+    color:var(--ink);
+    padding:9px 12px;
+    border-radius:3px;
+  }
+  .add-row input::placeholder{color:var(--ink-faint);}
+  .add-row input[name="name"]{width:180px;}
+  .add-row input[name="feed"]{flex:1; min-width:220px;}
+  .add-row input:focus-visible{outline:2px solid var(--amber); outline-offset:1px;}
+
+  /* ---------- feed grid ---------- */
+  main{padding:30px 28px 70px; max-width:1180px; margin:0 auto;}
+  .feed-meta{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    margin-bottom:18px;
+    color:var(--ink-faint);
+    font-size:11px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(310px, 1fr));
+    gap:1px;
+    background:var(--line);
+    border:1px solid var(--line);
+  }
+  .card{
+    background:var(--bg);
+    padding:22px 22px 20px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    min-height:128px;
+    transition:background .15s ease;
+  }
+  .card:hover{background:var(--bg2);}
+  .card a{
+    color:var(--ink);
+    text-decoration:none;
+    font-size:15.5px;
+    line-height:1.45;
+    font-weight:500;
+    letter-spacing:0.1px;
+  }
+  .card a:hover{color:var(--amber);}
+  .card a:focus-visible{outline:2px solid var(--amber); outline-offset:3px;}
+  .card .src-tag{
+    font-size:9px;
+    letter-spacing:1.3px;
+    text-transform:uppercase;
+    color:var(--ink-faint);
+    opacity:0.7;
+  }
+
+  .card.skeleton .bar{
+    height:13px;
+    background:linear-gradient(90deg, var(--bg2) 25%, #23262c 37%, var(--bg2) 63%);
+    background-size:400% 100%;
+    animation:shimmer 1.4s ease infinite;
+    border-radius:2px;
+  }
+  .card.skeleton .bar.short{width:60%;}
+  @keyframes shimmer{0%{background-position:100% 0;}100%{background-position:0 0;}}
+
+  .empty-state{
+    text-align:center;
+    padding:80px 20px;
+    color:var(--ink-faint);
+  }
+  .empty-state .big{
+    font-family:'Fraunces', serif;
+    font-style:italic;
+    font-size:22px;
+    color:var(--ink-dim);
+    margin-bottom:8px;
+  }
+
+  footer{
+    text-align:center;
+    padding:24px;
+    font-size:10px;
+    color:var(--ink-faint);
+    letter-spacing:1px;
+    border-top:1px solid var(--line);
+  }
+
+  /* Finnish copy toggle */
+  [data-fi]{display:none;}
+  body.lang-fi [data-fi]{display:inline;}
+  body.lang-fi [data-en]{display:none;}
+
+  @media (prefers-reduced-motion: reduce){
+    .card.skeleton .bar{animation:none;}
+    .flagbtn, button.ctl{transition:none;}
+  }
+
+  @media (max-width:640px){
+    header{padding:14px 16px;}
+    .controls{padding:12px 16px;}
+    main{padding:22px 16px 50px;}
+    .brand .tagline{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="mark">WIRE<span>/</span><span data-en>EQUAL SIGNAL</span><span data-fi>SAMA SIGNAALI</span></div>
+    <div class="tagline" data-en>No mastheads. No hierarchy. Just headlines.</div>
+    <div class="tagline" data-fi>Ei logoja. Ei arvojärjestystä. Vain otsikot.</div>
+  </div>
+  <div class="top-right">
+    <div class="datebox">
+      <div class="day" id="dayLine">—</div>
+      <div class="full" id="dateLine">—</div>
+    </div>
+    <button class="flagbtn" id="langBtn" title="Switch language" aria-label="Switch language">🇬🇧</button>
+  </div>
+</header>
+
+<div class="controls">
+  <button class="ctl" id="toggleManage"><span data-en>Manage sources</span><span data-fi>Hallitse lähteitä</span></button>
+  <button class="ctl" id="shuffleBtn"><span data-en>Reshuffle</span><span data-fi>Sekoita</span></button>
+  <button class="ctl" id="refreshBtn"><span data-en>Refresh feeds</span><span data-fi>Päivitä syötteet</span></button>
+  <div class="spacer"></div>
+  <span class="status" id="statusLine"></span>
+  <button class="ctl" id="loadBtn"><span data-en>Load</span><span data-fi>Lataa</span></button>
+  <button class="ctl primary" id="saveBtn"><span data-en>Save</span><span data-fi>Tallenna</span></button>
+</div>
+
+<div class="panel" id="managePanel">
+  <div class="panel-inner">
+    <h2><span data-en>Sources</span><span data-fi>Lähteet</span></h2>
+    <p class="hint">
+      <span data-en>Add any public RSS/Atom feed URL. Browser security (CORS) means not every site's feed can be fetched directly here — if a source fails to load, that's why. Headlines are translated to English and shown in shuffled order with no source ranking.</span>
+      <span data-fi>Lisää mikä tahansa julkinen RSS/Atom-syötteen osoite. Selaimen CORS-suojaus estää joidenkin sivustojen syötteiden hakemisen suoraan täältä — jos lähde ei lataudu, tämä on syy. Otsikot käännetään englanniksi ja näytetään sekoitetussa järjestyksessä ilman lähteiden arvojärjestystä.</span>
+    </p>
+    <div id="sourceList"></div>
+    <div class="add-row">
+      <input type="text" name="name" placeholder="Source name" id="newName">
+      <input type="text" name="feed" placeholder="https://example.com/rss.xml" id="newFeed">
+      <button class="ctl primary" id="addSourceBtn"><span data-en>Add source</span><span data-fi>Lisää lähde</span></button>
+    </div>
+  </div>
+</div>
+
+<main>
+  <div class="feed-meta">
+    <span><span data-en>Live headlines</span><span data-fi>Tuoreet otsikot</span> · <span id="countLine">0</span></span>
+    <span id="lastUpdated"></span>
+  </div>
+  <div class="grid" id="grid"></div>
+</main>
+
+<footer>
+  <span data-en>WIRE strips bylines and rankings on purpose — every headline arrives the same size. Source tags stay visible in small print for transparency.</span>
+  <span data-fi>WIRE poistaa tarkoituksella tekijätiedot ja arvojärjestyksen — kaikki otsikot saapuvat samankokoisina. Lähdetunnisteet näkyvät pienellä avoimuuden vuoksi.</span>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  const DEFAULT_SOURCES = [
+    { name:"BBC News", url:"https://feeds.bbci.co.uk/news/rss.xml" },
+    { name:"NPR", url:"https://feeds.npr.org/1001/rss.xml" },
+    { name:"Al Jazeera", url:"https://www.aljazeera.com/xml/rss/all.xml" },
+    { name:"The Guardian", url:"https://www.theguardian.com/world/rss" },
+    { name:"Reuters World", url:"https://www.reutersagency.com/feed/?best-topics=top-news&post_type=best" },
+    { name:"Yle Uutiset", url:"https://yle.fi/rss/uutiset/paauutiset" }
+  ];
+
+  const CORS_PROXIES = [
+    url => "https://api.allorigins.win/raw?url=" + encodeURIComponent(url),
+    url => "https://corsproxy.io/?url=" + encodeURIComponent(url),
+    url => "https://thingproxy.freeboard.io/fetch/" + url
+  ];
+  const STORAGE_KEY = "wire_equal_signal_v1";
+
+  let sources = [];
+  let headlines = []; // {title, translatedTitle, link, sourceName}
+
+  // ---------- date/time ----------
+  function renderDate(){
+    const now = new Date();
+    const dayOpts = { weekday:'long' };
+    const dateOpts = { year:'numeric', month:'long', day:'numeric' };
+    document.getElementById('dayLine').textContent = now.toLocaleDateString('en-US', dayOpts).toUpperCase();
+    document.getElementById('dateLine').textContent = now.toLocaleDateString('en-US', dateOpts);
+  }
+
+  // ---------- language ----------
+  let lang = 'en';
+  function setLang(l){
+    lang = l;
+    document.body.classList.toggle('lang-fi', l === 'fi');
+    document.getElementById('langBtn').textContent = l === 'en' ? '🇬🇧' : '🇫🇮';
+    document.getElementById('langBtn').title = l === 'en' ? 'Vaihda suomeksi' : 'Switch to English';
+  }
+  document.getElementById('langBtn').addEventListener('click', () => setLang(lang === 'en' ? 'fi' : 'en'));
+
+  // ---------- shuffle ----------
+  function shuffle(arr){
+    const a = arr.slice();
+    for(let i=a.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [a[i],a[j]] = [a[j],a[i]];
+    }
+    return a;
+  }
+
+  // ---------- naive translation fallback ----------
+  // Uses MyMemory's free translation endpoint when reachable; falls back to original text silently.
+  async function translateText(text, sourceLangGuess){
+    try{
+      const resp = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sourceLangGuess}|en`);
+      if(!resp.ok) throw new Error('translate fail');
+      const data = await resp.json();
+      if(data && data.responseData && data.responseData.translatedText){
+        return data.responseData.translatedText;
+      }
+      throw new Error('no translation');
+    }catch(e){
+      return text; // fallback: show original
+    }
+  }
+
+  function guessLangFromSource(name){
+    if(/yle|suomi|iltalehti|hs\.fi|mtv/i.test(name)) return 'fi';
+    return 'autodetect';
+  }
+
+  // ---------- rendering ----------
+  function renderSkeleton(){
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    for(let i=0;i<9;i++){
+      const c = document.createElement('div');
+      c.className = 'card skeleton';
+      c.innerHTML = `<div class="bar"></div><div class="bar"></div><div class="bar short"></div>`;
+      grid.appendChild(c);
+    }
+  }
+
+  function renderHeadlines(){
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    document.getElementById('countLine').textContent = headlines.length;
+
+    if(headlines.length === 0){
+      grid.style.display = 'block';
+      grid.innerHTML = `<div class="empty-state">
+        <div class="big" data-en>No headlines yet</div>
+        <div class="big" data-fi style="display:none;">Ei otsikoita vielä</div>
+        <div data-en>Add a source above, or hit Refresh feeds again — the public CORS relay this page depends on can be temporarily overloaded.</div>
+        <div data-fi style="display:none;">Lisää lähde yllä, tai paina Päivitä syötteet uudelleen — sivun käyttämä julkinen CORS-välityspalvelin voi olla tilapäisesti ruuhkautunut.</div>
+      </div>`;
+      if(lang==='fi'){
+        grid.querySelectorAll('[data-fi]').forEach(e=>e.style.display='block');
+        grid.querySelectorAll('[data-en]').forEach(e=>e.style.display='none');
+      }
+      return;
+    }
+    grid.style.display = 'grid';
+    const shuffled = shuffle(headlines);
+    shuffled.forEach(h => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      const a = document.createElement('a');
+      a.href = h.link || '#';
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = h.translatedTitle || h.title;
+      const tag = document.createElement('div');
+      tag.className = 'src-tag';
+      tag.textContent = h.sourceName;
+      card.appendChild(a);
+      card.appendChild(tag);
+      grid.appendChild(card);
+    });
+  }
+
+  // ---------- fetching ----------
+  function parseRSS(xmlText){
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xmlText, "text/xml");
+    let items = Array.from(doc.querySelectorAll('item'));
+    if(items.length === 0){
+      items = Array.from(doc.querySelectorAll('entry')); // Atom
+    }
+    return items.slice(0, 8).map(item => {
+      const title = item.querySelector('title')?.textContent?.trim() || '';
+      let link = item.querySelector('link')?.textContent?.trim();
+      if(!link){
+        const linkEl = item.querySelector('link');
+        link = linkEl ? linkEl.getAttribute('href') : '#';
+      }
+      return { title, link };
+    }).filter(i => i.title);
+  }
+
+  function fetchWithTimeout(url, ms){
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ms);
+    return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timer));
+  }
+
+  async function fetchViaProxies(targetUrl){
+    let lastErr = null;
+    for(const buildUrl of CORS_PROXIES){
+      try{
+        const resp = await fetchWithTimeout(buildUrl(targetUrl), 9000);
+        if(!resp.ok) throw new Error('bad status ' + resp.status);
+        const text = await resp.text();
+        if(!text || text.length < 20) throw new Error('empty response');
+        return text;
+      }catch(e){
+        lastErr = e;
+        continue; // try next proxy
+      }
+    }
+    throw lastErr || new Error('all proxies failed');
+  }
+
+  async function fetchSource(source){
+    try{
+      const text = await fetchViaProxies(source.url);
+      const items = parseRSS(text);
+      if(items.length === 0) throw new Error('no items parsed');
+      const langGuess = guessLangFromSource(source.name);
+      const translated = await Promise.all(items.map(async it => {
+        let translatedTitle = it.title;
+        if(langGuess === 'fi'){
+          translatedTitle = await translateText(it.title, 'fi');
+        } else {
+          // try autodetect translation; if result equals input, assume already English
+          translatedTitle = await translateText(it.title, 'autodetect');
+        }
+        return { title: it.title, translatedTitle, link: it.link, sourceName: source.name };
+      }));
+      return translated;
+    }catch(e){
+      console.warn('Failed source', source.name, e);
+      return null;
+    }
+  }
+
+  async function refreshAll(){
+    renderSkeleton();
+    setStatus(lang==='en' ? 'Fetching feeds…' : 'Haetaan syötteitä…');
+    const results = await Promise.all(sources.map(fetchSource));
+    let collected = [];
+    let failedCount = 0;
+    results.forEach((r, idx) => {
+      if(r === null){ failedCount++; return; }
+      collected = collected.concat(r);
+    });
+    headlines = collected;
+    renderHeadlines();
+    document.getElementById('lastUpdated').textContent =
+      (lang==='en' ? 'Updated ' : 'Päivitetty ') + new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+    if(failedCount > 0){
+      setStatus((lang==='en' ? `${failedCount} source(s) unreachable` : `${failedCount} lähde(ttä) ei tavoitettu`));
+    } else {
+      setStatus(lang==='en' ? 'All sources loaded' : 'Kaikki lähteet ladattu');
+    }
+  }
+
+  function setStatus(msg){
+    document.getElementById('statusLine').textContent = msg;
+  }
+
+  // ---------- source management ----------
+  function renderSourceList(){
+    const list = document.getElementById('sourceList');
+    list.innerHTML = '';
+    sources.forEach((s, idx) => {
+      const row = document.createElement('div');
+      row.className = 'source-row';
+      row.innerHTML = `<span class="name">${escapeHtml(s.name)}</span><span class="url">${escapeHtml(s.url)}</span>`;
+      const rm = document.createElement('button');
+      rm.className = 'rm';
+      rm.textContent = '✕';
+      rm.title = 'Remove';
+      rm.addEventListener('click', () => {
+        sources.splice(idx, 1);
+        renderSourceList();
+      });
+      row.appendChild(rm);
+      list.appendChild(row);
+    });
+  }
+
+  function escapeHtml(str){
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  document.getElementById('addSourceBtn').addEventListener('click', () => {
+    const nameEl = document.getElementById('newName');
+    const feedEl = document.getElementById('newFeed');
+    const name = nameEl.value.trim();
+    const url = feedEl.value.trim();
+    if(!name || !url) return;
+    sources.push({ name, url });
+    nameEl.value = '';
+    feedEl.value = '';
+    renderSourceList();
+  });
+
+  document.getElementById('toggleManage').addEventListener('click', () => {
+    document.getElementById('managePanel').classList.toggle('open');
+  });
+
+  document.getElementById('shuffleBtn').addEventListener('click', renderHeadlines);
+  document.getElementById('refreshBtn').addEventListener('click', refreshAll);
+
+  // ---------- save / load ----------
+  document.getElementById('saveBtn').addEventListener('click', () => {
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ sources, lang }));
+      setStatus(lang==='en' ? 'Saved to browser' : 'Tallennettu selaimeen');
+    }catch(e){
+      setStatus(lang==='en' ? 'Save failed' : 'Tallennus epäonnistui');
+    }
+  });
+
+  document.getElementById('loadBtn').addEventListener('click', () => {
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw){
+        setStatus(lang==='en' ? 'Nothing saved yet' : 'Ei tallennettua dataa');
+        return;
+      }
+      const data = JSON.parse(raw);
+      sources = data.sources || DEFAULT_SOURCES.slice();
+      setLang(data.lang || 'en');
+      renderSourceList();
+      refreshAll();
+      setStatus(lang==='en' ? 'Loaded' : 'Ladattu');
+    }catch(e){
+      setStatus(lang==='en' ? 'Load failed' : 'Lataus epäonnistui');
+    }
+  });
+
+  // ---------- init ----------
+  function init(){
+    renderDate();
+    setLang('en');
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      try{
+        const data = JSON.parse(raw);
+        sources = data.sources || DEFAULT_SOURCES.slice();
+        setLang(data.lang || 'en');
+      }catch(e){
+        sources = DEFAULT_SOURCES.slice();
+      }
+    } else {
+      sources = DEFAULT_SOURCES.slice();
+    }
+    renderSourceList();
+    refreshAll();
+  }
+
+  init();
+})();
+</script>
+
+</body>
+</html>
