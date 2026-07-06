@@ -411,11 +411,20 @@
       if(!resp.ok) throw new Error('translate fail');
       const data = await resp.json();
       if(data && data.responseData && data.responseData.translatedText){
-        return data.responseData.translatedText;
+        const translated = data.responseData.translatedText;
+        
+        // Jos vastaus sisältää tunnettuja virheilmoituksia tai käyttörajavaroituksia, näytetään alkuperäinen teksti
+        if (
+          translated.includes("PLEASE SELECT TWO DISTINCT LANGUAGES") || 
+          translated.includes("MYMEMORY WARNING")
+        ) {
+          return text;
+        }
+        return translated;
       }
       throw new Error('no translation');
     }catch(e){
-      return text; // fallback: show original
+      return text; // fallback: näytä alkuperäinen teksti
     }
   }
 
@@ -524,11 +533,12 @@
       const langGuess = guessLangFromSource(source.name);
       const translated = await Promise.all(items.map(async it => {
         let translatedTitle = it.title;
+        // Käännetään vain, jos lähde tunnistetaan suomenkieliseksi
         if(langGuess === 'fi'){
           translatedTitle = await translateText(it.title, 'fi');
         } else {
-          // try autodetect translation; if result equals input, assume already English
-          translatedTitle = await translateText(it.title, 'autodetect');
+          // Jos lähde on jo valmiiksi englanninkielinen, käytetään suoraan alkuperäistä otsikkoa
+          translatedTitle = it.title;
         }
         return { title: it.title, translatedTitle, link: it.link, sourceName: source.name };
       }));
