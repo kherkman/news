@@ -356,21 +356,42 @@
   "use strict";
 
   const DEFAULT_SOURCES = [
-    { name:"BBC News", url:"https://feeds.bbci.co.uk/news/rss.xml" },
-    { name:"NPR", url:"https://feeds.npr.org/1001/rss.xml" },
-    { name:"Al Jazeera", url:"https://www.aljazeera.com/xml/rss/all.xml" },
-    { name:"The Guardian", url:"https://www.theguardian.com/world/rss" },
-    { name:"Reuters World", url:"https://www.reutersagency.com/feed/?best-topics=top-news&post_type=best" },
-    { name:"Yle Uutiset", url:"https://yle.fi/rss/uutiset/paauutiset" }
-    { name:"CNBC Finance", url:"https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664" },
-    { name:"Financial Times Markets", url:"https://www.ft.com/markets?format=rss" },
+    // --- Kotimaiset lähteet (Kääntyvät automaattisesti englanniksi) ---
+    { name:"Yle Uutiset", url:"https://yle.fi/rss/uutiset/paauutiset" },
     { name:"Kauppalehti", url:"https://www.kauppalehti.fi/api/uutiset/rss" },
     { name:"Talouselämä", url:"https://www.talouselama.fi/api/uutiset/rss" },
-    { name:"Arvopaperi", url:"https://www.arvopaperi.fi/api/uutiset/rss" },
-    { name:"TechCrunch", url:"https://techcrunch.com/feed/" },
-    { name:"The Verge", url:"https://www.theverge.com/rss/index.xml" },
-    { name:"Tivi", url:"https://www.tivi.fi/api/uutiset/rss" },
-    { name:"Tekniikka & Talous", url:"https://www.tekniikkatalous.fi/api/uutiset/rss" }
+    { name:"Tekniikka & Talous", url:"https://www.tekniikkatalous.fi/api/uutiset/rss" },
+
+    // --- Länsi-Eurooppa & Pohjois-Amerikka ---
+    { name:"BBC News", url:"https://feeds.bbci.co.uk/news/rss.xml" },
+    { name:"The Guardian", url:"https://www.theguardian.com/world/rss" },
+    { name:"Reuters World", url:"https://www.reutersagency.com/feed/?best-topics=top-news&post_type=best" },
+    { name:"DW News (Saksa)", url:"https://rss.dw.com/rdf/rss-en-all" },
+    { name:"France 24 (Ranska)", url:"https://www.france24.com/en/rss" },
+    { name:"NPR (USA)", url:"https://feeds.npr.org/1001/rss.xml" },
+
+    // --- Itä- & Kaakkois-Aasia ---
+    { name:"NHK World (Japani)", url:"https://www3.nhk.or.jp/nhkworld/rss/world.xml" },
+    { name:"Nikkei Asia", url:"https://asia.nikkei.com/rss" },
+    { name:"SCMP (Kiina)", url:"https://www.scmp.com/rss/91/feed" },
+    { name:"CNA (Aasia)", url:"https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml" },
+
+    // --- Etelä-Aasia ---
+    { name:"NDTV India", url:"https://feeds.feedburner.com/ndtvnews-top-stories" },
+
+    // --- Lähi-itä ---
+    { name:"Al Jazeera", url:"https://www.aljazeera.com/xml/rss/all.xml" },
+
+    // --- Afrikka ---
+    { name:"Africanews", url:"https://www.africanews.com/feed/rss?themes=news" },
+    { name:"AllAfrica", url:"https://allafrica.com/tools/headlines/rdf/latest/headlines.rdf" },
+
+    // --- Oseania ---
+    { name:"SBS News (Australia)", url:"https://www.sbs.com.au/news/feed" },
+    { name:"RNZ (Uusi-Seelanti)", url:"https://www.rnz.co.nz/rss/national.xml" },
+
+    // --- Etelä-Amerikka ---
+    { name:"MercoPress", url:"https://en.mercopress.com/rss/" }
   ];
 
   const CORS_PROXIES = [
