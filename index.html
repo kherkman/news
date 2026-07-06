@@ -372,7 +372,8 @@
   const STORAGE_KEY = "wire_equal_signal_v1";
 
   let sources = [];
-  let headlines = []; // {title, translatedTitle, link, sourceName}
+  let headlines = []; // master-lista: {originalTitle, sourceLang, link, sourceName, titleEn, titleFi}
+  let shuffledHeadlines = []; // Sekoitettu näytettävä uutislista
 
   // ---------- date/time ----------
   function renderDate(){
@@ -390,6 +391,7 @@
     document.body.classList.toggle('lang-fi', l === 'fi');
     document.getElementById('langBtn').textContent = l === 'en' ? '🇬🇧' : '🇫🇮';
     document.getElementById('langBtn').title = l === 'en' ? 'Vaihda suomeksi' : 'Switch to English';
+    renderHeadlines(); // Päivitetään uutiset vastaamaan uutta kieltä
   }
   document.getElementById('langBtn').addEventListener('click', () => setLang(lang === 'en' ? 'fi' : 'en'));
 
@@ -403,17 +405,14 @@
     return a;
   }
 
-  // ---------- naive translation fallback ----------
-  // Uses MyMemory's free translation endpoint when reachable; falls back to original text silently.
-  async function translateText(text, sourceLangGuess){
+  // ---------- MyMemory translation ----------
+  async function translateText(text, sourceLang, targetLang){
     try{
-      const resp = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sourceLangGuess}|en`);
+      const resp = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sourceLang}|${targetLang}`);
       if(!resp.ok) throw new Error('translate fail');
       const data = await resp.json();
       if(data && data.responseData && data.responseData.translatedText){
         const translated = data.responseData.translatedText;
-        
-        // Jos vastaus sisältää tunnettuja virheilmoituksia tai käyttörajavaroituksia, näytetään alkuperäinen teksti
         if (
           translated.includes("PLEASE SELECT TWO DISTINCT LANGUAGES") || 
           translated.includes("MYMEMORY WARNING")
@@ -424,13 +423,15 @@
       }
       throw new Error('no translation');
     }catch(e){
-      return text; // fallback: näytä alkuperäinen teksti
+      return text; // fallback: palautetaan alkuperäinen
     }
   }
 
-  function guessLangFromSource(name){
-    if(/yle|suomi|iltalehti|hs\.fi|mtv/i.test(name)) return 'fi';
-    return 'autodetect';
+  // Tunnistetaan suomalaiset uutislähteet nimen tai verkko-osoitteen perusteella
+  function guessLangFromSource(name, url){
+    const combined = (name + " " + (url || "")).toLowerCase();
+    if(/yle|suomi|uutis|uutiset|iltalehti|hs\.fi|mtv|sanomat|paivapost|\.fi/i.test(combined)) return 'fi';
+    return 'en';
   }
 
   // ---------- rendering ----------
@@ -445,12 +446,41 @@
     }
   }
 
+  // Hakee käännöksen taustalla ja päivittää elementin heti kun se valmistuu
+  async function translateAndTriggerUpdate(headline, targetLang, anchorElement) {
+    const sourceLang = headline.sourceLang;
+    
+    // Jos uutinen on jo kohdekielellä, ei käännetä turhaan
+    if (sourceLang === targetLang) {
+      if (targetLang === 'en') headline.titleEn = headline.originalTitle;
+      if (targetLang === 'fi') headline.titleFi = headline.originalTitle;
+      anchorElement.textContent = headline.originalTitle;
+      return;
+    }
+    
+    try {
+      const translated = await translateText(headline.originalTitle, sourceLang, targetLang);
+      if (targetLang === 'en') {
+        headline.titleEn = translated;
+      } else {
+        headline.titleFi = translated;
+      }
+      
+      // Päivitetään teksti vain jos käyttäjä on yhä samassa kielitilassa
+      if (lang === targetLang) {
+        anchorElement.textContent = translated;
+      }
+    } catch (e) {
+      // Epäonnistuessa pidetään näkyvissä oleva alkuperäinen otsikko
+    }
+  }
+
   function renderHeadlines(){
     const grid = document.getElementById('grid');
     grid.innerHTML = '';
-    document.getElementById('countLine').textContent = headlines.length;
+    document.getElementById('countLine').textContent = shuffledHeadlines.length;
 
-    if(headlines.length === 0){
+    if(shuffledHeadlines.length === 0){
       grid.style.display = 'block';
       grid.innerHTML = `<div class="empty-state">
         <div class="big" data-en>No headlines yet</div>
@@ -465,15 +495,34 @@
       return;
     }
     grid.style.display = 'grid';
-    const shuffled = shuffle(headlines);
-    shuffled.forEach(h => {
+    
+    shuffledHeadlines.forEach(h => {
       const card = document.createElement('div');
       card.className = 'card';
       const a = document.createElement('a');
       a.href = h.link || '#';
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
-      a.textContent = h.translatedTitle || h.title;
+      
+      let titleToShow = "";
+      if (lang === 'en') {
+        if (h.titleEn) {
+          titleToShow = h.titleEn;
+        } else {
+          titleToShow = h.originalTitle; // fallback
+          translateAndTriggerUpdate(h, 'en', a);
+        }
+      } else { // lang === 'fi'
+        if (h.titleFi) {
+          titleToShow = h.titleFi;
+        } else {
+          titleToShow = h.originalTitle; // fallback
+          translateAndTriggerUpdate(h, 'fi', a);
+        }
+      }
+      
+      a.textContent = titleToShow;
+      
       const tag = document.createElement('div');
       tag.className = 'src-tag';
       tag.textContent = h.sourceName;
@@ -530,19 +579,19 @@
       const text = await fetchViaProxies(source.url);
       const items = parseRSS(text);
       if(items.length === 0) throw new Error('no items parsed');
-      const langGuess = guessLangFromSource(source.name);
-      const translated = await Promise.all(items.map(async it => {
-        let translatedTitle = it.title;
-        // Käännetään vain, jos lähde tunnistetaan suomenkieliseksi
-        if(langGuess === 'fi'){
-          translatedTitle = await translateText(it.title, 'fi');
-        } else {
-          // Jos lähde on jo valmiiksi englanninkielinen, käytetään suoraan alkuperäistä otsikkoa
-          translatedTitle = it.title;
-        }
-        return { title: it.title, translatedTitle, link: it.link, sourceName: source.name };
-      }));
-      return translated;
+      const sourceLang = guessLangFromSource(source.name, source.url);
+      
+      return items.map(it => {
+        const isFi = (sourceLang === 'fi');
+        return {
+          originalTitle: it.title,
+          sourceLang: sourceLang,
+          link: it.link,
+          sourceName: source.name,
+          titleEn: isFi ? null : it.title,
+          titleFi: isFi ? it.title : null
+        };
+      });
     }catch(e){
       console.warn('Failed source', source.name, e);
       return null;
@@ -560,6 +609,7 @@
       collected = collected.concat(r);
     });
     headlines = collected;
+    shuffledHeadlines = shuffle(headlines); // Sekoitetaan lista kerran latauksen yhteydessä
     renderHeadlines();
     document.getElementById('lastUpdated').textContent =
       (lang==='en' ? 'Updated ' : 'Päivitetty ') + new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
@@ -617,7 +667,10 @@
     document.getElementById('managePanel').classList.toggle('open');
   });
 
-  document.getElementById('shuffleBtn').addEventListener('click', renderHeadlines);
+  document.getElementById('shuffleBtn').addEventListener('click', () => {
+    shuffledHeadlines = shuffle(headlines);
+    renderHeadlines();
+  });
   document.getElementById('refreshBtn').addEventListener('click', refreshAll);
 
   // ---------- save / load ----------
