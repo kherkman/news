@@ -405,6 +405,36 @@
   let headlines = []; // master-lista: {originalTitle, sourceLang, link, sourceName, titleEn, titleFi}
   let shuffledHeadlines = []; // Sekoitettu näytettävä uutislista
 
+  // ---------- Käännösjono (Translation Queue) ----------
+  const translationQueue = [];
+  let activeTranslations = 0;
+  const MAX_CONCURRENT_TRANSLATIONS = 3; // Suoritetaan enintään 3 pyyntöä samanaikaisesti suojellaksemme API:a
+
+  function processTranslationQueue() {
+    while (activeTranslations < MAX_CONCURRENT_TRANSLATIONS && translationQueue.length > 0) {
+      const task = translationQueue.shift();
+      activeTranslations++;
+      task().finally(() => {
+        activeTranslations--;
+        processTranslationQueue();
+      });
+    }
+  }
+
+  function enqueueTranslation(headline, targetLang, idx) {
+    translationQueue.push(async () => {
+      await translateAndTriggerUpdate(headline, targetLang, idx);
+    });
+    processTranslationQueue();
+  }
+
+  // Aputoiminto HTML-entiteettien muuntamiseksi tekstiksi (esim. &quot; -> ")
+  function decodeHtml(html) {
+    const txt = document.createElement("textarea");
+    txt.innerHTML = html;
+    return txt.value;
+  }
+
   // ---------- date/time ----------
   function renderDate(){
     const now = new Date();
@@ -418,6 +448,7 @@
   let lang = 'en';
   function setLang(l){
     lang = l;
+    translationQueue.length = 0; // Tyhjennetään käännösjono, ettei vanhoja pyyntöjä käännetä turhaan taustalla
     document.body.classList.toggle('lang-fi', l === 'fi');
     document.getElementById('langBtn').textContent = l === 'en' ? '🇬🇧' : '🇫🇮';
     document.getElementById('langBtn').title = l === 'en' ? 'Vaihda suomeksi' : 'Switch to English';
@@ -438,7 +469,9 @@
   // ---------- MyMemory translation ----------
   async function translateText(text, sourceLang, targetLang){
     try{
-      const resp = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sourceLang}|${targetLang}`);
+      // Lisätään vapaaehtoinen "de"-sähköpostiosoite nostamaan ilmaisen päiväkiintiön 5k merkistä -> 50k merkkiin
+      const email = "anonymous.equalnews@gmail.com";
+      const resp = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sourceLang}|${targetLang}&de=${email}`);
       if(!resp.ok) throw new Error('translate fail');
       const data = await resp.json();
       if(data && data.responseData && data.responseData.translatedText){
@@ -449,7 +482,7 @@
         ) {
           return text;
         }
-        return translated;
+        return decodeHtml(translated);
       }
       throw new Error('no translation');
     }catch(e){
@@ -477,14 +510,18 @@
   }
 
   // Hakee käännöksen taustalla ja päivittää elementin heti kun se valmistuu
-  async function translateAndTriggerUpdate(headline, targetLang, anchorElement) {
+  async function translateAndTriggerUpdate(headline, targetLang, idx) {
     const sourceLang = headline.sourceLang;
     
     // Jos uutinen on jo kohdekielellä, ei käännetä turhaan
     if (sourceLang === targetLang) {
       if (targetLang === 'en') headline.titleEn = headline.originalTitle;
       if (targetLang === 'fi') headline.titleFi = headline.originalTitle;
-      anchorElement.textContent = headline.originalTitle;
+      
+      const el = document.querySelector(`a[data-id="${idx}"]`);
+      if (el && lang === targetLang) {
+        el.textContent = headline.originalTitle;
+      }
       return;
     }
     
@@ -496,9 +533,12 @@
         headline.titleFi = translated;
       }
       
-      // Päivitetään teksti vain jos käyttäjä on yhä samassa kielitilassa
+      // Päivitetään teksti vain jos käyttäjä on yhä samassa kielitilassa ja kortti on yhä sivulla
       if (lang === targetLang) {
-        anchorElement.textContent = translated;
+        const el = document.querySelector(`a[data-id="${idx}"]`);
+        if (el) {
+          el.textContent = translated;
+        }
       }
     } catch (e) {
       // Epäonnistuessa pidetään näkyvissä oleva alkuperäinen otsikko
@@ -526,13 +566,14 @@
     }
     grid.style.display = 'grid';
     
-    shuffledHeadlines.forEach(h => {
+    shuffledHeadlines.forEach((h, idx) => {
       const card = document.createElement('div');
       card.className = 'card';
       const a = document.createElement('a');
       a.href = h.link || '#';
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
+      a.setAttribute('data-id', idx); // Tärkeä: ID-pohjainen tunnistus
       
       let titleToShow = "";
       if (lang === 'en') {
@@ -540,14 +581,14 @@
           titleToShow = h.titleEn;
         } else {
           titleToShow = h.originalTitle; // fallback
-          translateAndTriggerUpdate(h, 'en', a);
+          enqueueTranslation(h, 'en', idx);
         }
       } else { // lang === 'fi'
         if (h.titleFi) {
           titleToShow = h.titleFi;
         } else {
           titleToShow = h.originalTitle; // fallback
-          translateAndTriggerUpdate(h, 'fi', a);
+          enqueueTranslation(h, 'fi', idx);
         }
       }
       
@@ -629,6 +670,7 @@
   }
 
   async function refreshAll(){
+    translationQueue.length = 0; // Tyhjennetään vanha käännösjono ennen uuden haun aloitusta
     renderSkeleton();
     setStatus(lang==='en' ? 'Fetching feeds…' : 'Haetaan syötteitä…');
     const results = await Promise.all(sources.map(fetchSource));
@@ -698,6 +740,7 @@
   });
 
   document.getElementById('shuffleBtn').addEventListener('click', () => {
+    translationQueue.length = 0; // Tyhjennetään jono sekoituksen ajaksi, koska indeksit muuttuvat!
     shuffledHeadlines = shuffle(headlines);
     renderHeadlines();
   });
