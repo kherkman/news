@@ -198,6 +198,77 @@
   .add-row input[name="feed"]{flex:1; min-width:220px;}
   .add-row input:focus-visible{outline:2px solid var(--amber); outline-offset:1px;}
 
+  /* ---------- financial tickers ---------- */
+  .financial-ticker-section {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--line);
+  }
+  .ticker-row {
+    display: flex;
+    align-items: center;
+    border-bottom: 1px dashed var(--line);
+    height: 38px;
+    overflow: hidden;
+    position: relative;
+    padding-left: 140px; /* Tilaa kiinnitetylle otsikolle vasemmalla */
+  }
+  .ticker-row:last-child {
+    border-bottom: none;
+  }
+  .ticker-label-sticky {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 140px;
+    background: var(--bg2);
+    border-right: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    padding-left: 16px;
+    font-size: 8px;
+    letter-spacing: 1.2px;
+    color: var(--amber);
+    font-weight: 700;
+    text-transform: uppercase;
+    z-index: 10;
+  }
+  .ticker-marquee {
+    display: flex;
+    gap: 40px;
+    will-change: transform;
+    animation: ticker-scroll 25s linear infinite;
+    align-items: center;
+  }
+  .ticker-item {
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--ink-dim);
+    white-space: nowrap;
+  }
+  .ticker-item .name {
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .ticker-val {
+    font-weight: 600;
+  }
+  .ticker-val.up {
+    color: #4cd137;
+  }
+  .ticker-val.down {
+    color: #ff7675;
+  }
+
+  @keyframes ticker-scroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-33.333%); } /* Tasainen jatkuva silmukka monistetun sisällön kanssa */
+  }
+
   /* ---------- ticker view ---------- */
   .ticker-container{
     background:var(--bg2);
@@ -324,6 +395,7 @@
   @media (prefers-reduced-motion: reduce){
     .card.skeleton .bar{animation:none;}
     .flagbtn, button.ctl, .ticker-text, .ticker-source{transition:none;}
+    .ticker-marquee{animation-play-state: paused;}
   }
 
   @media (max-width:640px){
@@ -331,6 +403,8 @@
     .controls{padding:12px 16px;}
     .ticker-container{padding:18px 16px; min-height:95px;}
     .ticker-text{font-size:17px;}
+    .ticker-row {padding-left: 110px;}
+    .ticker-label-sticky {width: 110px; padding-left: 10px; font-size: 7.5px;}
     main{padding:22px 16px 50px;}
     .brand .tagline{display:none;}
   }
@@ -379,6 +453,31 @@
   </div>
 </div>
 
+<!-- Rullaavat kurssilistat -->
+<div class="financial-ticker-section">
+  <div class="ticker-row">
+    <div class="ticker-label-sticky">
+      <span data-en>Commodities</span>
+      <span data-fi>Raaka-aineet</span>
+    </div>
+    <div class="ticker-marquee" id="commodityTrack"></div>
+  </div>
+  <div class="ticker-row">
+    <div class="ticker-label-sticky">
+      <span data-en>Currencies</span>
+      <span data-fi>Valuuttakurssit</span>
+    </div>
+    <div class="ticker-marquee" id="currencyTrack"></div>
+  </div>
+  <div class="ticker-row">
+    <div class="ticker-label-sticky">
+      <span data-en>Stocks</span>
+      <span data-fi>Osakkeet</span>
+    </div>
+    <div class="ticker-marquee" id="stockTrack"></div>
+  </div>
+</div>
+
 <!-- Nosto-osio yläosassa -->
 <div class="ticker-container" id="tickerContainer" style="display:none;">
   <div class="ticker-label">
@@ -407,6 +506,11 @@
   "use strict";
 
   const DEFAULT_SOURCES = [
+    // --- Markkina- ja talousuutiset (Uudet lähteet) ---
+    { name:"Investing.com Commodities", url:"https://www.investing.com/rss/news_11.rss" },
+    { name:"Yahoo Finance Markets", url:"https://finance.yahoo.com/news/rssindex" },
+    { name:"CNN Business Markets", url:"http://rss.cnn.com/rss/money_latest.rss" },
+
     // --- Kotimaiset lähteet (Kääntyvät automaattisesti englanniksi) ---
     { name:"Yle Uutiset", url:"https://yle.fi/rss/uutiset/paauutiset" },
     { name:"Kauppalehti", url:"https://www.kauppalehti.fi/api/uutiset/rss" },
@@ -456,6 +560,130 @@
   let headlines = []; // master-lista: {originalTitle, sourceLang, link, sourceName, titleEn, titleFi}
   let shuffledHeadlines = []; // Sekoitettu näytettävä uutislista
 
+  // ---------- Ticker-toiminnallisuus ----------
+  let tickerInterval = null;
+  let currentTickerIndex = 0;
+
+  // ---------- Finanssirullien määrittelyt ----------
+  const COMMODITY_SYMBOLS = [
+    { symbol: "GC=F", name: "Gold", nameFi: "Kulta" },
+    { symbol: "CL=F", name: "WTI Crude Oil", nameFi: "WTI Öljy" },
+    { symbol: "SI=F", name: "Silver", nameFi: "Hopea" },
+    { symbol: "NG=F", name: "Natural Gas", nameFi: "Maakaasu" },
+    { symbol: "HG=F", name: "Copper", nameFi: "Kupari" }
+  ];
+
+  const CURRENCY_SYMBOLS = [
+    { symbol: "EURUSD=X", name: "EUR/USD", nameFi: "EUR/USD" },
+    { symbol: "USDJPY=X", name: "USD/JPY", nameFi: "USD/JPY" },
+    { symbol: "GBPUSD=X", name: "GBP/USD", nameFi: "GBP/USD" },
+    { symbol: "EURGBP=X", name: "EUR/GBP", nameFi: "EUR/GBP" },
+    { symbol: "EURCHF=X", name: "EUR/CHF", nameFi: "EUR/CHF" }
+  ];
+
+  const STOCK_SYMBOLS = [
+    { symbol: "AAPL", name: "Apple", nameFi: "Apple" },
+    { symbol: "MSFT", name: "Microsoft", nameFi: "Microsoft" },
+    { symbol: "NVDA", name: "NVIDIA", nameFi: "NVIDIA" },
+    { symbol: "TSLA", name: "Tesla", nameFi: "Tesla" },
+    { symbol: "NOKIA.HE", name: "Nokia (HEL)", nameFi: "Nokia (HEL)" },
+    { symbol: "NESTE.HE", name: "Neste (HEL)", nameFi: "Neste (HEL)" }
+  ];
+
+  let commoditiesData = [];
+  let currenciesData = [];
+  let stocksData = [];
+
+  // Hakee kurssitiedon Yahoo Finance -rajapinnasta CORS-proxyjen kautta
+  async function fetchFinancialQuote(symbolObj) {
+    const symbol = symbolObj.symbol;
+    const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}`;
+    
+    for (const buildUrl of CORS_PROXIES) {
+      try {
+        const resp = await fetchWithTimeout(buildUrl(targetUrl), 8000);
+        if (!resp.ok) continue;
+        const text = await resp.text();
+        const data = JSON.parse(text);
+        const meta = data?.chart?.result?.[0]?.meta;
+        if (meta) {
+          const currentPrice = meta.regularMarketPrice;
+          const prevClose = meta.chartPreviousClose;
+          if (currentPrice !== undefined && prevClose !== undefined) {
+            const changePercent = ((currentPrice - prevClose) / prevClose) * 100;
+            return {
+              ...symbolObj,
+              price: currentPrice,
+              change: changePercent
+            };
+          }
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+    return { ...symbolObj, price: null, change: null };
+  }
+
+  function renderTickerLoading() {
+    const loadingHtml = '<div class="ticker-item"><span class="name">Loading...</span></div>';
+    document.getElementById('commodityTrack').innerHTML = Array(10).fill(loadingHtml).join('');
+    document.getElementById('currencyTrack').innerHTML = Array(10).fill(loadingHtml).join('');
+    document.getElementById('stockTrack').innerHTML = Array(10).fill(loadingHtml).join('');
+  }
+
+  function renderTickerRow(elementId, dataArray) {
+    const track = document.getElementById(elementId);
+    if (!dataArray || dataArray.length === 0) {
+      track.innerHTML = '<div class="ticker-item"><span class="name">Data unavailable</span></div>';
+      return;
+    }
+
+    const itemsHtml = dataArray.map(item => {
+      const displayName = lang === 'fi' ? item.nameFi : item.name;
+      if (item.price === null || item.price === undefined) {
+        return `<div class="ticker-item"><span class="name">${displayName}</span>: <span class="ticker-val">—</span></div>`;
+      }
+      
+      const formattedPrice = item.price.toLocaleString(lang === 'fi' ? 'fi-FI' : 'en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 4
+      });
+      const changeVal = item.change;
+      const changeClass = changeVal >= 0 ? 'up' : 'down';
+      const changeSign = changeVal >= 0 ? '+' : '';
+      const formattedChange = changeVal.toFixed(2);
+
+      return `<div class="ticker-item">
+        <span class="name">${displayName}</span>: 
+        <span class="ticker-val">${formattedPrice}</span> 
+        <span class="ticker-val ${changeClass}">(${changeSign}${formattedChange}%)</span>
+      </div>`;
+    }).join('');
+
+    // Monistetaan lista kolmesti, jotta silmukasta tulee katkeamaton ja saumaton
+    track.innerHTML = Array(3).fill(itemsHtml).join('');
+  }
+
+  function renderAllTickers() {
+    renderTickerRow('commodityTrack', commoditiesData);
+    renderTickerRow('currencyTrack', currenciesData);
+    renderTickerRow('stockTrack', stocksData);
+  }
+
+  async function loadFinancialTickers() {
+    renderTickerLoading();
+    const [commodities, currencies, stocks] = await Promise.all([
+      Promise.all(COMMODITY_SYMBOLS.map(fetchFinancialQuote)),
+      Promise.all(CURRENCY_SYMBOLS.map(fetchFinancialQuote)),
+      Promise.all(STOCK_SYMBOLS.map(fetchFinancialQuote))
+    ]);
+    commoditiesData = commodities;
+    currenciesData = currencies;
+    stocksData = stocks;
+    renderAllTickers();
+  }
+
   // ---------- Käännösjono (Translation Queue) ----------
   const translationQueue = [];
   let activeTranslations = 0;
@@ -485,10 +713,6 @@
     txt.innerHTML = html;
     return txt.value;
   }
-
-  // ---------- Nosto-osion (Ticker) toiminnallisuus ----------
-  let tickerInterval = null;
-  let currentTickerIndex = 0;
 
   function updateTicker() {
     const container = document.getElementById('tickerContainer');
@@ -567,6 +791,7 @@
     document.getElementById('langBtn').title = l === 'en' ? 'Vaihda suomeksi' : 'Switch to English';
     renderHeadlines(); // Päivitetään uutiset vastaamaan uutta kieltä
     updateTicker();    // Päivitetään myös nosto-otsikko heti oikealle kielelle
+    renderAllTickers(); // Päivitetään pörssirullat heti uudelle kielelle ja oikeille desimaalimuodoille
   }
   document.getElementById('langBtn').addEventListener('click', () => setLang(lang === 'en' ? 'fi' : 'en'));
 
@@ -795,7 +1020,13 @@
     translationQueue.length = 0; // Tyhjennetään vanha käännösjono ennen uuden haun aloitusta
     renderSkeleton();
     setStatus(lang==='en' ? 'Fetching feeds…' : 'Haetaan syötteitä…');
-    const results = await Promise.all(sources.map(fetchSource));
+    
+    // Ladataan uutislähteet ja finanssikurssit rinnakkain
+    const resultsPromise = Promise.all(sources.map(fetchSource));
+    const tickersPromise = loadFinancialTickers();
+    
+    const [results] = await Promise.all([resultsPromise, tickersPromise]);
+    
     let collected = [];
     let failedCount = 0;
     results.forEach((r, idx) => {
@@ -805,7 +1036,8 @@
     headlines = collected;
     shuffledHeadlines = shuffle(headlines); // Sekoitetaan lista kerran latauksen yhteydessä
     renderHeadlines();
-    startTicker(); // Käynnistetään nostokaruselli uudelleen
+    startTicker(); // Resetoidaan ja käynnistetään nostokaruselli uudelleen
+    
     document.getElementById('lastUpdated').textContent =
       (lang==='en' ? 'Updated ' : 'Päivitetty ') + new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
     if(failedCount > 0){
