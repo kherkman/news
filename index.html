@@ -775,10 +775,13 @@
   // ---------- date/time ----------
   function renderDate(){
     const now = new Date();
+    // Valitaan maa-asetus kielen mukaan
+    const locale = lang === 'fi' ? 'fi-FI' : 'en-US';
     const dayOpts = { weekday:'long' };
     const dateOpts = { year:'numeric', month:'long', day:'numeric' };
-    document.getElementById('dayLine').textContent = now.toLocaleDateString('en-US', dayOpts).toUpperCase();
-    document.getElementById('dateLine').textContent = now.toLocaleDateString('en-US', dateOpts);
+    
+    document.getElementById('dayLine').textContent = now.toLocaleDateString(locale, dayOpts).toUpperCase();
+    document.getElementById('dateLine').textContent = now.toLocaleDateString(locale, dateOpts);
   }
 
   // ---------- language ----------
@@ -789,6 +792,8 @@
     document.body.classList.toggle('lang-fi', l === 'fi');
     document.getElementById('langBtn').textContent = l === 'en' ? '🇬🇧' : '🇫🇮';
     document.getElementById('langBtn').title = l === 'en' ? 'Vaihda suomeksi' : 'Switch to English';
+    
+    renderDate();      // LISÄTTY: Päivitetään päivämäärä heti uudelle kielelle
     renderHeadlines(); // Päivitetään uutiset vastaamaan uutta kieltä
     updateTicker();    // Päivitetään myös nosto-otsikko heti oikealle kielelle
     renderAllTickers(); // Päivitetään pörssirullat heti uudelle kielelle ja oikeille desimaalimuodoille
